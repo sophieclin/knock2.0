@@ -54,7 +54,7 @@ final class SystemActionExecutor: ActionExecuting {
 
     private func postMediaKey(_ key: Int32) {
         func post(down: Bool) {
-            let data1 = Int((Int(key) << 16) | (down ? 0xa00 : 0xb00) << 8)
+            let data1 = Int((Int(key) << 16) | (down ? 0xa00 : 0xb00))
             let flags: NSEvent.ModifierFlags = down ? NSEvent.ModifierFlags(rawValue: 0xa00) : NSEvent.ModifierFlags(rawValue: 0xb00)
             let event = NSEvent.otherEvent(
                 with: .systemDefined,
