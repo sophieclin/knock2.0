@@ -1,6 +1,13 @@
 import Foundation
 import KnockCore
 
+// Belt-and-braces alongside SO_NOSIGPIPE on each client fd in SocketServer:
+// writing to a socket whose peer has closed its read side raises SIGPIPE,
+// which by default terminates the process. Clients (KnockAgent) are
+// expected to disconnect and reconnect routinely, so the daemon must not
+// die when that happens.
+signal(SIGPIPE, SIG_IGN)
+
 let simulate = CommandLine.arguments.contains("--simulate")
 
 let config = (try? ConfigStore.load(from: ConfigStore.defaultPath)) ?? .default

@@ -55,6 +55,13 @@ public final class SocketServer {
     private func acceptClient() {
         let clientFD = accept(listenFD, nil, nil)
         guard clientFD >= 0 else { return }
+        // Without this, writing to a client that has closed its read side
+        // (e.g. KnockAgent quit or crashed) raises SIGPIPE, which by
+        // default terminates the whole process. A failure here isn't
+        // fatal since signal(SIGPIPE, SIG_IGN) at process startup covers
+        // us regardless.
+        var one: Int32 = 1
+        setsockopt(clientFD, SOL_SOCKET, SO_NOSIGPIPE, &one, socklen_t(MemoryLayout<Int32>.size))
         clientFDs.append(clientFD)
     }
 
@@ -76,9 +83,14 @@ public final class SocketServer {
 
     public func stop() {
         acceptSource?.cancel()
-        for fd in clientFDs { close(fd) }
-        clientFDs.removeAll()
-        if listenFD >= 0 { close(listenFD) }
+        // stop() is called from outside `queue` (unlike acceptClient(),
+        // which already runs on it), so route the shared-state mutation
+        // through queue.sync to avoid racing acceptClient()/broadcast().
+        queue.sync {
+            for fd in clientFDs { close(fd) }
+            clientFDs.removeAll()
+            if listenFD >= 0 { close(listenFD) }
+        }
         unlink(path)
     }
 }
