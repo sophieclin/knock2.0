@@ -547,7 +547,7 @@ git commit -m "Add KnockConfig, ConfigStore, and ConfigWatcher"
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `public enum SocketIPC { static let socketPath: String; static func encode(tapCount: Int) -> Data }` and `public final class LineBuffer { func append(_ data: Data) -> [String] }`. Task 8's `SocketServer` uses `SocketIPC.encode`/`socketPath`; Task 10's `SocketClient` uses `LineBuffer`/`socketPath`.
+- Produces: `public enum SocketIPC { static let socketPath: String; static func encode(tapCount: Int) -> Data; static func makeSockAddr(path: String) -> sockaddr_un }` and `public final class LineBuffer { func append(_ data: Data) -> [String] }`. Task 8's `SocketServer` uses `SocketIPC.encode`/`socketPath`/`makeSockAddr`; Task 10's `SocketClient` uses `LineBuffer`/`socketPath`/`makeSockAddr`. `makeSockAddr` is shared so the `sockaddr_un`-building boilerplate isn't duplicated between the two (preflight scan finding).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -575,6 +575,17 @@ final class SocketIPCTests: XCTestCase {
         let second = buffer.append(Data("\n3\n".utf8))
         XCTAssertEqual(second, ["2", "3"])
     }
+
+    func testMakeSockAddrSetsFamilyAndPath() {
+        var addr = SocketIPC.makeSockAddr(path: "/tmp/test.sock")
+        XCTAssertEqual(addr.sun_family, sa_family_t(AF_UNIX))
+        let path = withUnsafePointer(to: &addr.sun_path) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: addr.sun_path)) { cstrPtr in
+                String(cString: cstrPtr)
+            }
+        }
+        XCTAssertEqual(path, "/tmp/test.sock")
+    }
 }
 ```
 
@@ -588,12 +599,31 @@ Expected: FAIL — `SocketIPC`/`LineBuffer` not defined.
 `Sources/KnockCore/SocketIPC.swift`:
 ```swift
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#endif
 
 public enum SocketIPC {
     public static let socketPath = "/tmp/knockd.sock"
 
     public static func encode(tapCount: Int) -> Data {
         Data("\(tapCount)\n".utf8)
+    }
+
+    /// Builds a sockaddr_un for the given path, for use with bind()/connect().
+    /// Shared by knockd's SocketServer and KnockAgent's SocketClient so the
+    /// sun_path-filling boilerplate exists in exactly one place.
+    public static func makeSockAddr(path: String) -> sockaddr_un {
+        var addr = sockaddr_un()
+        addr.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: addr.sun_path)) { cstrPtr in
+                path.withCString { pathPtr in
+                    strncpy(cstrPtr, pathPtr, MemoryLayout.size(ofValue: addr.sun_path) - 1)
+                }
+            }
+        }
+        return addr
     }
 }
 
@@ -622,7 +652,7 @@ public final class LineBuffer {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `swift test --filter SocketIPCTests`
-Expected: PASS (3 tests).
+Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -903,16 +933,7 @@ public final class SocketServer {
         listenFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard listenFD >= 0 else { throw SocketError.systemError(errno) }
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
-            ptr.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: addr.sun_path)) { cstrPtr in
-                path.withCString { pathPtr in
-                    strncpy(cstrPtr, pathPtr, MemoryLayout.size(ofValue: addr.sun_path) - 1)
-                }
-            }
-        }
-
+        var addr = SocketIPC.makeSockAddr(path: path)
         let addrSize = socklen_t(MemoryLayout<sockaddr_un>.size)
         let bindResult = withUnsafePointer(to: &addr) { ptr -> Int32 in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
@@ -1190,15 +1211,7 @@ final class SocketClient {
         let socketFD = socket(AF_UNIX, SOCK_STREAM, 0)
         guard socketFD >= 0 else { return }
 
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
-            ptr.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: addr.sun_path)) { cstrPtr in
-                path.withCString { pathPtr in
-                    strncpy(cstrPtr, pathPtr, MemoryLayout.size(ofValue: addr.sun_path) - 1)
-                }
-            }
-        }
+        var addr = SocketIPC.makeSockAddr(path: path)
         let addrSize = socklen_t(MemoryLayout<sockaddr_un>.size)
         let connectResult = withUnsafePointer(to: &addr) { ptr -> Int32 in
             ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
