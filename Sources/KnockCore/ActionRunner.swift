@@ -7,6 +7,7 @@ public protocol ActionExecuting {
     func mediaPlayPause() throws
     func runShellCommand(_ command: String) throws
     func switchToPreviousApp() throws
+    func pressKeys(_ combo: KeyCombo) throws
 }
 
 public final class ActionRunner {
@@ -27,6 +28,9 @@ public final class ActionRunner {
             try executor.runShellCommand(command)
         case .previousApp:
             try executor.switchToPreviousApp()
+        case .keystroke:
+            guard let keys = action.keys, let combo = KeyCombo.parse(keys) else { return }
+            try executor.pressKeys(combo)
         }
     }
 }

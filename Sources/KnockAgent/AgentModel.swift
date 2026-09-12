@@ -23,7 +23,11 @@ final class AgentModel: ObservableObject {
         }
         socketClient.onTapCount = { [weak self] count in
             guard let self, let action = self.config.mappings["\(count)"] else { return }
-            try? self.actionRunner.run(action)
+            do {
+                try self.actionRunner.run(action)
+            } catch {
+                fputs("\(count)-tap action \(action.type) failed: \(error)\n", stderr)
+            }
         }
         socketClient.start()
 

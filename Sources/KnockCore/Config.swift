@@ -9,14 +9,19 @@ public struct ActionConfig: Codable, Equatable {
         case mediaPlayPause
         case shellCommand
         case previousApp
+        case keystroke
     }
 
     public let type: Kind
+    /// Shell command for `.shellCommand`.
     public let command: String?
+    /// Shortcut spec for `.keystroke`, e.g. "cmd+shift+4" (see KeyCombo.parse).
+    public let keys: String?
 
-    public init(type: Kind, command: String? = nil) {
+    public init(type: Kind, command: String? = nil, keys: String? = nil) {
         self.type = type
         self.command = command
+        self.keys = keys
     }
 }
 

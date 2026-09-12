@@ -11,6 +11,35 @@ final class SystemActionExecutor: ActionExecuting {
     enum ExecutorError: Error {
         case audioPropertyFailed(OSStatus)
         case noPreviousApp
+        case accessibilityNotGranted
+        case eventCreationFailed
+    }
+
+    /// Posting keyboard events to other apps needs the Accessibility
+    /// permission (System Settings > Privacy & Security > Accessibility) for
+    /// the process that launched us — the terminal, when run via `swift run`.
+    /// Without it the events are silently dropped, so ask up front; the
+    /// system shows its prompt only the first time.
+    func pressKeys(_ combo: KeyCombo) throws {
+        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        guard AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary) else {
+            throw ExecutorError.accessibilityNotGranted
+        }
+
+        var flags = CGEventFlags()
+        if combo.modifiers.contains(.command) { flags.insert(.maskCommand) }
+        if combo.modifiers.contains(.shift) { flags.insert(.maskShift) }
+        if combo.modifiers.contains(.option) { flags.insert(.maskAlternate) }
+        if combo.modifiers.contains(.control) { flags.insert(.maskControl) }
+
+        guard let down = CGEvent(keyboardEventSource: nil, virtualKey: combo.keyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: nil, virtualKey: combo.keyCode, keyDown: false) else {
+            throw ExecutorError.eventCreationFailed
+        }
+        down.flags = flags
+        up.flags = flags
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
     }
 
     // Activation history for `switchToPreviousApp`. Seeded with whatever is
