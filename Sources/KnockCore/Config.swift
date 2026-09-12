@@ -41,9 +41,12 @@ public struct KnockConfig: Codable, Equatable {
 }
 
 public enum ConfigStore {
+    /// Deliberately not `.../Knock/config.json`: that directory is already
+    /// used by the commercial Knock app with an incompatible schema, and
+    /// we must not overwrite it.
     public static var defaultPath: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return appSupport.appendingPathComponent("Knock", isDirectory: true).appendingPathComponent("config.json")
+        return appSupport.appendingPathComponent("KnockDetector", isDirectory: true).appendingPathComponent("config.json")
     }
 
     public static func load(from url: URL) throws -> KnockConfig {
