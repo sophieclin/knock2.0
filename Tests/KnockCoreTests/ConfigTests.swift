@@ -35,6 +35,28 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(loaded.mappings["3"]?.command, "open -a Notes")
     }
 
+    func testKeystrokeMappingRoundTrips() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        var config = KnockConfig.default
+        config.mappings["3"] = ActionConfig(type: .keystroke, keys: "cmd+shift+4")
+        try ConfigStore.save(config, to: url)
+        XCTAssertEqual(try ConfigStore.load(from: url), config)
+    }
+
+    /// Config files written before `keys` existed must still load.
+    func testLoadsConfigWithoutKeysField() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let legacy = """
+        {"sensitivity": 0.08, "windowMs": 400, "mappings": {"2": {"type": "mute"}}}
+        """
+        try Data(legacy.utf8).write(to: url)
+        let loaded = try ConfigStore.load(from: url)
+        XCTAssertEqual(loaded.mappings["2"], ActionConfig(type: .mute))
+    }
+
     func testWatcherFiresOnFileChange() throws {
         let url = tempURL()
         defer { try? FileManager.default.removeItem(at: url) }

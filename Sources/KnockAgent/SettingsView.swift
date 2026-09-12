@@ -16,7 +16,9 @@ struct SettingsView: View {
                 HStack {
                     Text("\(tapCount) tap(s)")
                     Spacer()
-                    Text(action.type.rawValue)
+                    Text(describe(action))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                     Button("Remove") {
                         var updated = model.config
                         updated.mappings.removeValue(forKey: tapCount)
@@ -40,7 +42,9 @@ struct SettingsView: View {
                             model.save(updated)
                         }
                     ),
-                    in: 0.1...1.0
+                    // Typing measures ~0.05 g, taps 0.1–0.3 g; keep the useful
+                    // range reachable rather than starting at 0.1.
+                    in: 0.02...0.5
                 )
             }
 
@@ -50,6 +54,16 @@ struct SettingsView: View {
         .padding()
         .frame(width: 320)
     }
+
+    private func describe(_ action: ActionConfig) -> String {
+        switch action.type {
+        case .mute: return "Mute"
+        case .mediaPlayPause: return "Play/Pause"
+        case .previousApp: return "Previous app"
+        case .shellCommand: return "Shell: \(action.command ?? "")"
+        case .keystroke: return "Keys: \(action.keys ?? "")"
+        }
+    }
 }
 
 private struct AddMappingForm: View {
@@ -57,6 +71,9 @@ private struct AddMappingForm: View {
     @State private var tapCount = "1"
     @State private var actionType: ActionConfig.Kind = .mute
     @State private var command = ""
+    @State private var keys = ""
+
+    private var keysAreValid: Bool { KeyCombo.parse(keys) != nil }
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -67,20 +84,30 @@ private struct AddMappingForm: View {
                     Text("Mute").tag(ActionConfig.Kind.mute)
                     Text("Play/Pause").tag(ActionConfig.Kind.mediaPlayPause)
                     Text("Shell command").tag(ActionConfig.Kind.shellCommand)
+                    Text("Previous app").tag(ActionConfig.Kind.previousApp)
+                    Text("Keystroke").tag(ActionConfig.Kind.keystroke)
                 }
                 .frame(width: 140)
             }
             if actionType == .shellCommand {
                 TextField("Command", text: $command)
             }
+            if actionType == .keystroke {
+                TextField("e.g. cmd+shift+4 or cmd+c", text: $keys)
+                if !keys.isEmpty && !keysAreValid {
+                    Text("Unrecognized shortcut").font(.caption).foregroundStyle(.red)
+                }
+            }
             Button("Add") {
                 var updated = model.config
                 updated.mappings[tapCount] = ActionConfig(
                     type: actionType,
-                    command: actionType == .shellCommand ? command : nil
+                    command: actionType == .shellCommand ? command : nil,
+                    keys: actionType == .keystroke ? keys : nil
                 )
                 model.save(updated)
             }
+            .disabled(actionType == .keystroke && !keysAreValid)
         }
     }
 }

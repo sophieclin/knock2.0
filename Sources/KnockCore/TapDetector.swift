@@ -23,13 +23,21 @@ public final class TapDetector {
     public var sensitivity: Double
     public var windowSeconds: TimeInterval
 
+    /// Deviation of the most recent sample from the gravity baseline — the
+    /// value compared against `sensitivity`. Exposed for knockd's `--debug`
+    /// output so thresholds can be tuned against real numbers.
+    public private(set) var lastDeviation: Double = 0
+
     private var runningAverage: Double = 1.0 // starts near 1g at rest
     private let averageAlpha: Double = 0.02
     private let debounceSeconds: TimeInterval = 0.06
     private var hitsInBurst: [TimeInterval] = []
     private var lastHitTime: TimeInterval?
 
-    public init(sensitivity: Double = 0.35, windowSeconds: TimeInterval = 0.4) {
+    /// Default sensitivity of 0.08 g comes from measuring an M3 MacBook with
+    /// `knockd --debug`: typing peaks around 0.047 g, the lightest deliberate
+    /// tap around 0.097 g.
+    public init(sensitivity: Double = 0.08, windowSeconds: TimeInterval = 0.4) {
         self.sensitivity = sensitivity
         self.windowSeconds = windowSeconds
     }
@@ -40,6 +48,7 @@ public final class TapDetector {
     public func ingest(_ sample: AccelSample) -> Int? {
         let magnitude = (sample.x * sample.x + sample.y * sample.y + sample.z * sample.z).squareRoot()
         let deviation = abs(magnitude - runningAverage)
+        lastDeviation = deviation
         runningAverage = runningAverage * (1 - averageAlpha) + magnitude * averageAlpha
 
         var completed: Int? = nil

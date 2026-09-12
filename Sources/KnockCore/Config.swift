@@ -8,14 +8,20 @@ public struct ActionConfig: Codable, Equatable {
         case mute
         case mediaPlayPause
         case shellCommand
+        case previousApp
+        case keystroke
     }
 
     public let type: Kind
+    /// Shell command for `.shellCommand`.
     public let command: String?
+    /// Shortcut spec for `.keystroke`, e.g. "cmd+shift+4" (see KeyCombo.parse).
+    public let keys: String?
 
-    public init(type: Kind, command: String? = nil) {
+    public init(type: Kind, command: String? = nil, keys: String? = nil) {
         self.type = type
         self.command = command
+        self.keys = keys
     }
 }
 
@@ -31,7 +37,7 @@ public struct KnockConfig: Codable, Equatable {
     }
 
     public static let `default` = KnockConfig(
-        sensitivity: 0.35,
+        sensitivity: 0.08, // see TapDetector.init for where this number comes from
         windowMs: 400,
         mappings: [
             "1": ActionConfig(type: .mediaPlayPause),

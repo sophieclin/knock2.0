@@ -33,6 +33,24 @@ swift run KnockAgent
 swift run knockd --simulate
 ```
 
+## Run automatically at boot/login
+
+```bash
+scripts/install.sh      # asks for your password (installs a root LaunchDaemon)
+```
+
+This builds release binaries into `/usr/local/libexec/knock/`, installs
+`knockd` as a LaunchDaemon (starts at boot, as root) and `KnockAgent` as
+a LaunchAgent (starts at login), and starts both now. Re-run it after
+pulling code changes. Logs go to `/var/log/knockd.log` and
+`~/Library/Logs/KnockAgent.log`. `scripts/uninstall.sh` removes it all
+(keeps your config).
+
+If you use Keystroke actions, grant Accessibility permission to
+`/usr/local/libexec/knock/KnockAgent` when macOS prompts — this is a
+separate grant from the one your terminal has, and needs redoing after a
+reinstall because the binary changes.
+
 ## Configuring tap → action mappings
 
 Use the KnockAgent menu bar icon's settings window, or edit
