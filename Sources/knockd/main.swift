@@ -13,7 +13,17 @@ let simulate = CommandLine.arguments.contains("--simulate")
 // tuned against what real taps actually look like on this machine.
 let debug = CommandLine.arguments.contains("--debug")
 
-let config = (try? ConfigStore.load(from: ConfigStore.defaultPath)) ?? .default
+// --config PATH: explicit config file. Needed when launched by launchd as a
+// LaunchDaemon, where there is no SUDO_USER to locate the user's home.
+let configURL: URL = {
+    let args = CommandLine.arguments
+    if let flag = args.firstIndex(of: "--config"), flag + 1 < args.count {
+        return URL(fileURLWithPath: args[flag + 1])
+    }
+    return ConfigStore.defaultPath
+}()
+
+let config = (try? ConfigStore.load(from: configURL)) ?? .default
 let detector = TapDetector(sensitivity: config.sensitivity, windowSeconds: TimeInterval(config.windowMs) / 1000.0)
 let server = SocketServer(path: SocketIPC.socketPath)
 
@@ -82,7 +92,7 @@ if simulate {
     // Pick up sensitivity/window changes made in KnockAgent's UI without a
     // restart. Both the watcher and the HID callbacks run on the main run
     // loop, so mutating the detector here is safe.
-    let watcher = ConfigWatcher(url: ConfigStore.defaultPath) { newConfig in
+    let watcher = ConfigWatcher(url: configURL) { newConfig in
         detector.sensitivity = newConfig.sensitivity
         detector.windowSeconds = TimeInterval(newConfig.windowMs) / 1000.0
         print("Config reloaded: sensitivity=\(newConfig.sensitivity) windowMs=\(newConfig.windowMs)")
