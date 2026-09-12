@@ -40,7 +40,9 @@ struct SettingsView: View {
                             model.save(updated)
                         }
                     ),
-                    in: 0.1...1.0
+                    // Typing measures ~0.05 g, taps 0.1–0.3 g; keep the useful
+                    // range reachable rather than starting at 0.1.
+                    in: 0.02...0.5
                 )
             }
 

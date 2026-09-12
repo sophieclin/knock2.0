@@ -31,7 +31,7 @@ public struct KnockConfig: Codable, Equatable {
     }
 
     public static let `default` = KnockConfig(
-        sensitivity: 0.35,
+        sensitivity: 0.08, // see TapDetector.init for where this number comes from
         windowMs: 400,
         mappings: [
             "1": ActionConfig(type: .mediaPlayPause),

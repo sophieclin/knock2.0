@@ -34,7 +34,10 @@ public final class TapDetector {
     private var hitsInBurst: [TimeInterval] = []
     private var lastHitTime: TimeInterval?
 
-    public init(sensitivity: Double = 0.35, windowSeconds: TimeInterval = 0.4) {
+    /// Default sensitivity of 0.08 g comes from measuring an M3 MacBook with
+    /// `knockd --debug`: typing peaks around 0.047 g, the lightest deliberate
+    /// tap around 0.097 g.
+    public init(sensitivity: Double = 0.08, windowSeconds: TimeInterval = 0.4) {
         self.sensitivity = sensitivity
         self.windowSeconds = windowSeconds
     }
