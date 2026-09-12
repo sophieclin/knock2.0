@@ -32,11 +32,54 @@ sudo mkdir -p "$BIN_DIR"
 sudo cp .build/release/knockd "$BIN_DIR/"
 sudo rm -f "$BIN_DIR/KnockAgent" # from earlier installs, before the .app bundle
 
-echo "==> Installing $APP"
-sudo rm -rf "$APP"
-sudo mkdir -p "$APP/Contents/MacOS"
-sudo cp .build/release/KnockAgent "$AGENT_EXE"
-sudo tee "$APP/Contents/Info.plist" >/dev/null <<EOF
+# macOS ties the Accessibility grant to the app's code signature. The
+# linker's ad-hoc signature changes on every build, which forced a
+# re-grant after each reinstall. Signing with one self-signed certificate
+# (created once, kept in the login keychain) gives a stable identity so
+# the grant survives rebuilds.
+SIGN_ID="Knock Dev"
+ensure_signing_identity() {
+    if security find-identity -v -p codesigning | grep -q "\"$SIGN_ID\""; then return; fi
+    echo "==> Creating self-signed code-signing certificate '$SIGN_ID' (one time; may ask for your login password)"
+    local tmp; tmp=$(mktemp -d)
+    cat > "$tmp/cert.cnf" <<EOF
+[req]
+distinguished_name = dn
+x509_extensions = ext
+prompt = no
+[dn]
+CN = $SIGN_ID
+[ext]
+keyUsage = critical, digitalSignature
+extendedKeyUsage = critical, codeSigning
+basicConstraints = critical, CA:false
+EOF
+    openssl req -x509 -newkey rsa:2048 -nodes -days 3650 -config "$tmp/cert.cnf" \
+        -keyout "$tmp/key.pem" -out "$tmp/cert.pem" 2>/dev/null
+    # -legacy keeps the .p12 in a format `security import` accepts on every macOS;
+    # fall back for openssl builds without the legacy provider.
+    openssl pkcs12 -export -out "$tmp/knock.p12" -inkey "$tmp/key.pem" -in "$tmp/cert.pem" -passout pass:knock -legacy 2>/dev/null \
+        || openssl pkcs12 -export -out "$tmp/knock.p12" -inkey "$tmp/key.pem" -in "$tmp/cert.pem" -passout pass:knock
+    local keychain="$HOME/Library/Keychains/login.keychain-db"
+    security import "$tmp/knock.p12" -k "$keychain" -P knock -T /usr/bin/codesign >/dev/null
+    security add-trusted-cert -r trustRoot -p codeSign -k "$keychain" "$tmp/cert.pem"
+    rm -rf "$tmp"
+}
+
+# Skip the KnockAgent reinstall when the binary hasn't changed, so a
+# knockd-only change can't disturb the app (or its permissions).
+build_hash=$(shasum -a 256 .build/release/KnockAgent | cut -d' ' -f1)
+installed_hash=$(cat "$APP/Contents/Resources/build.sha256" 2>/dev/null || true)
+if [ "$build_hash" = "$installed_hash" ] && codesign -dv "$APP" 2>&1 | grep -q "Authority=$SIGN_ID"; then
+    echo "==> $APP is up to date, leaving it alone"
+else
+    ensure_signing_identity
+    echo "==> Building and signing $APP"
+    stage=$(mktemp -d)/KnockAgent.app
+    mkdir -p "$stage/Contents/MacOS" "$stage/Contents/Resources"
+    cp .build/release/KnockAgent "$stage/Contents/MacOS/KnockAgent"
+    echo "$build_hash" > "$stage/Contents/Resources/build.sha256"
+    cat > "$stage/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -52,6 +95,14 @@ sudo tee "$APP/Contents/Info.plist" >/dev/null <<EOF
 </dict>
 </plist>
 EOF
+    # Sign as the user (the certificate is in the login keychain, which root
+    # can't see), then move into place.
+    codesign --force --sign "$SIGN_ID" --identifier "$AGENT_LABEL" "$stage"
+    codesign --verify --strict "$stage"
+    sudo rm -rf "$APP"
+    sudo cp -R "$stage" "$APP"
+    rm -rf "$(dirname "$stage")"
+fi
 
 echo "==> Writing launchd plists"
 mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
@@ -110,4 +161,5 @@ echo
 echo "NOTE: if you use Keystroke actions, macOS will ask you to grant"
 echo "Accessibility permission to KnockAgent the first time one fires."
 echo "If it doesn't ask, add $APP in System Settings > Privacy & Security"
-echo "> Accessibility with the + button."
+echo "> Accessibility with the + button. If a stale entry is there from a"
+echo "previous install, clear it first: tccutil reset Accessibility $AGENT_LABEL"
