@@ -8,6 +8,7 @@ public struct ActionConfig: Codable, Equatable {
         case mute
         case mediaPlayPause
         case shellCommand
+        case previousApp
     }
 
     public let type: Kind

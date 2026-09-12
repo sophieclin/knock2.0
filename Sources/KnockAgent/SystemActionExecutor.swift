@@ -10,6 +10,48 @@ import KnockCore
 final class SystemActionExecutor: ActionExecuting {
     enum ExecutorError: Error {
         case audioPropertyFailed(OSStatus)
+        case noPreviousApp
+    }
+
+    // Activation history for `switchToPreviousApp`. Seeded with whatever is
+    // frontmost at launch so the first switch after startup has a target.
+    private var recentApps = RecentAppTracker(ownPID: ProcessInfo.processInfo.processIdentifier)
+    private var activationObserver: NSObjectProtocol?
+
+    init() {
+        if let front = NSWorkspace.shared.frontmostApplication {
+            recentApps.noteActivated(pid: front.processIdentifier)
+        }
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            self?.recentApps.noteActivated(pid: app.processIdentifier)
+        }
+    }
+
+    deinit {
+        if let activationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
+        }
+    }
+
+    /// Tap events arrive on the socket queue; `recentApps` is only touched on
+    /// main (where the observer runs), so hop there.
+    func switchToPreviousApp() throws {
+        let work = { () throws -> Void in
+            guard let pid = self.recentApps.previousPID, let app = NSRunningApplication(processIdentifier: pid) else {
+                throw ExecutorError.noPreviousApp
+            }
+            app.activate(options: .activateIgnoringOtherApps)
+        }
+        if Thread.isMainThread {
+            try work()
+        } else {
+            try DispatchQueue.main.sync(execute: work)
+        }
     }
 
     func mute() throws {

@@ -6,6 +6,7 @@ public protocol ActionExecuting {
     func mute() throws
     func mediaPlayPause() throws
     func runShellCommand(_ command: String) throws
+    func switchToPreviousApp() throws
 }
 
 public final class ActionRunner {
@@ -24,6 +25,8 @@ public final class ActionRunner {
         case .shellCommand:
             guard let command = action.command else { return }
             try executor.runShellCommand(command)
+        case .previousApp:
+            try executor.switchToPreviousApp()
         }
     }
 }

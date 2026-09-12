@@ -69,6 +69,7 @@ private struct AddMappingForm: View {
                     Text("Mute").tag(ActionConfig.Kind.mute)
                     Text("Play/Pause").tag(ActionConfig.Kind.mediaPlayPause)
                     Text("Shell command").tag(ActionConfig.Kind.shellCommand)
+                    Text("Previous app").tag(ActionConfig.Kind.previousApp)
                 }
                 .frame(width: 140)
             }

@@ -20,6 +20,21 @@ let server = SocketServer(path: SocketIPC.socketPath)
 try server.start()
 print("knockd listening on \(SocketIPC.socketPath)")
 
+// Remove the socket file on Ctrl-C / kill. When run under sudo it is owned
+// by root, and a leftover would block any later non-root `--simulate` run
+// (unlink in sticky /tmp needs the owner). Handled on a background queue
+// because simulate mode blocks the main thread in readLine().
+let shutdownSignals = [SIGINT, SIGTERM].map { sig -> DispatchSourceSignal in
+    signal(sig, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: .global())
+    source.setEventHandler {
+        server.stop()
+        exit(0)
+    }
+    source.resume()
+    return source
+}
+
 if simulate {
     print("Simulate mode: type a number + Enter to fake a tap-count event (no hardware/root needed).")
     while let line = readLine() {
