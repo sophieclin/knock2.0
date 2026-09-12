@@ -57,6 +57,25 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(loaded.mappings["2"], ActionConfig(type: .mute))
     }
 
+    func testEnabledDefaultsToTrueWhenMissingFromFile() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let legacy = """
+        {"sensitivity": 0.08, "windowMs": 400, "mappings": {}}
+        """
+        try Data(legacy.utf8).write(to: url)
+        XCTAssertTrue(try ConfigStore.load(from: url).enabled)
+    }
+
+    func testEnabledFalseRoundTrips() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        var config = KnockConfig.default
+        config.enabled = false
+        try ConfigStore.save(config, to: url)
+        XCTAssertFalse(try ConfigStore.load(from: url).enabled)
+    }
+
     func testWatcherFiresOnFileChange() throws {
         let url = tempURL()
         defer { try? FileManager.default.removeItem(at: url) }

@@ -17,9 +17,14 @@ struct KnockAgentApp: App {
     @StateObject private var model = AgentModel()
 
     var body: some Scene {
-        MenuBarExtra(model.isConnected ? "Knock ●" : "Knock ○", systemImage: "hand.tap") {
+        MenuBarExtra(menuBarLabel, systemImage: model.config.enabled ? "hand.tap" : "hand.raised.slash") {
             SettingsView(model: model)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private var menuBarLabel: String {
+        if !model.config.enabled { return "Knock off" }
+        return model.isConnected ? "Knock ●" : "Knock ○"
     }
 }
