@@ -23,6 +23,11 @@ public final class TapDetector {
     public var sensitivity: Double
     public var windowSeconds: TimeInterval
 
+    /// Deviation of the most recent sample from the gravity baseline — the
+    /// value compared against `sensitivity`. Exposed for knockd's `--debug`
+    /// output so thresholds can be tuned against real numbers.
+    public private(set) var lastDeviation: Double = 0
+
     private var runningAverage: Double = 1.0 // starts near 1g at rest
     private let averageAlpha: Double = 0.02
     private let debounceSeconds: TimeInterval = 0.06
@@ -40,6 +45,7 @@ public final class TapDetector {
     public func ingest(_ sample: AccelSample) -> Int? {
         let magnitude = (sample.x * sample.x + sample.y * sample.y + sample.z * sample.z).squareRoot()
         let deviation = abs(magnitude - runningAverage)
+        lastDeviation = deviation
         runningAverage = runningAverage * (1 - averageAlpha) + magnitude * averageAlpha
 
         var completed: Int? = nil

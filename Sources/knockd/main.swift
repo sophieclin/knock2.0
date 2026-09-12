@@ -9,6 +9,9 @@ import KnockCore
 signal(SIGPIPE, SIG_IGN)
 
 let simulate = CommandLine.arguments.contains("--simulate")
+// --debug: print sample rate and deviation stats so `sensitivity` can be
+// tuned against what real taps actually look like on this machine.
+let debug = CommandLine.arguments.contains("--debug")
 
 let config = (try? ConfigStore.load(from: ConfigStore.defaultPath)) ?? .default
 let detector = TapDetector(sensitivity: config.sensitivity, windowSeconds: TimeInterval(config.windowMs) / 1000.0)
@@ -26,10 +29,32 @@ if simulate {
     }
 } else {
     final class ReaderDelegate: AccelerometerReaderDelegate {
+        private var windowStart: TimeInterval = 0
+        private var samplesInWindow = 0
+        private var maxDeviationInWindow = 0.0
+
         func accelerometerReader(_ reader: AccelerometerReader, didReceive sample: AccelSample) {
             if let count = detector.ingest(sample) {
                 print("Detected \(count)-tap pattern")
                 server.broadcast(tapCount: count)
+            }
+            if debug { logDebugStats(sample) }
+        }
+
+        /// Once per second: sample rate and the largest deviation seen, so the
+        /// noise floor (sitting still / typing) and tap peaks can be compared
+        /// against `sensitivity`.
+        private func logDebugStats(_ sample: AccelSample) {
+            if windowStart == 0 { windowStart = sample.timestamp }
+            samplesInWindow += 1
+            maxDeviationInWindow = max(maxDeviationInWindow, detector.lastDeviation)
+            if sample.timestamp - windowStart >= 1 {
+                let flag = maxDeviationInWindow > detector.sensitivity ? "  <-- over threshold" : ""
+                print(String(format: "[debug] %3d Hz  peak deviation %.3f g  (threshold %.2f)%@",
+                             samplesInWindow, maxDeviationInWindow, detector.sensitivity, flag))
+                windowStart = sample.timestamp
+                samplesInWindow = 0
+                maxDeviationInWindow = 0
             }
         }
     }
