@@ -11,5 +11,5 @@ launchctl bootout "gui/$(id -u)" "$AGENT_PLIST" 2>/dev/null
 sudo launchctl bootout system "$DAEMON_PLIST" 2>/dev/null
 rm -f "$AGENT_PLIST"
 sudo rm -f "$DAEMON_PLIST" /tmp/knockd.sock
-sudo rm -rf "$BIN_DIR"
+sudo rm -rf "$BIN_DIR" /Applications/KnockAgent.app
 echo "Uninstalled. Config kept at ~/Library/Application Support/KnockDetector/"
