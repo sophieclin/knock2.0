@@ -2,3 +2,4 @@
 .swiftpm/
 .worktrees/
 .superpowers/
+.DS_Store
