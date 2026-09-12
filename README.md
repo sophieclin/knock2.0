@@ -1,4 +1,4 @@
-# Knock (personal build)
+# Knock 2.0
 
 A free, personal alternative to the Knock app: detect tap patterns on
 the MacBook chassis via the internal accelerometer and trigger mute,
