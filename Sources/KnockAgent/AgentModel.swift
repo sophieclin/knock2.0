@@ -22,7 +22,7 @@ final class AgentModel: ObservableObject {
             DispatchQueue.main.async { self?.isConnected = connected }
         }
         socketClient.onTapCount = { [weak self] count in
-            guard let self, let action = self.config.mappings["\(count)"] else { return }
+            guard let self, self.config.enabled, let action = self.config.mappings["\(count)"] else { return }
             do {
                 try self.actionRunner.run(action)
             } catch {

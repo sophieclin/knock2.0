@@ -29,11 +29,27 @@ public struct KnockConfig: Codable, Equatable {
     public var sensitivity: Double
     public var windowMs: Int
     public var mappings: [String: ActionConfig]
+    /// Master on/off switch: when false, KnockAgent ignores tap events.
+    /// Persisted so a deliberate "off" survives restarts.
+    public var enabled: Bool
 
-    public init(sensitivity: Double, windowMs: Int, mappings: [String: ActionConfig]) {
+    public init(sensitivity: Double, windowMs: Int, mappings: [String: ActionConfig], enabled: Bool = true) {
         self.sensitivity = sensitivity
         self.windowMs = windowMs
         self.mappings = mappings
+        self.enabled = enabled
+    }
+
+    // Custom decoding so config files written before `enabled` existed
+    // still load (as enabled).
+    private enum CodingKeys: String, CodingKey { case sensitivity, windowMs, mappings, enabled }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        sensitivity = try c.decode(Double.self, forKey: .sensitivity)
+        windowMs = try c.decode(Int.self, forKey: .windowMs)
+        mappings = try c.decode([String: ActionConfig].self, forKey: .mappings)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
     }
 
     public static let `default` = KnockConfig(

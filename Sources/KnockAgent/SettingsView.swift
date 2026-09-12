@@ -7,6 +7,16 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Toggle("Enabled", isOn: Binding(
+                get: { model.config.enabled },
+                set: { newValue in
+                    var updated = model.config
+                    updated.enabled = newValue
+                    model.save(updated)
+                }
+            ))
+            .toggleStyle(.switch)
+
             Text(model.isConnected ? "knockd: connected" : "knockd: not running (start with sudo)")
                 .foregroundStyle(model.isConnected ? .green : .red)
 
