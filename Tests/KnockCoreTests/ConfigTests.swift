@@ -58,4 +58,53 @@ final class ConfigTests: XCTestCase {
         wait(for: [expectation], timeout: 2.0)
         XCTAssertEqual(received?.sensitivity, 0.9)
     }
+
+    /// ConfigStore.save writes atomically (write temp + rename), which
+    /// replaces the inode. The watcher must survive that and keep seeing
+    /// subsequent saves, not just the first one.
+    func testWatcherKeepsFiringAcrossAtomicRewrites() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        try ConfigStore.save(.default, to: url)
+
+        let first = expectation(description: "first change")
+        let second = expectation(description: "second change")
+        var sensitivities: [Double] = []
+        let watcher = ConfigWatcher(url: url) { newConfig in
+            sensitivities.append(newConfig.sensitivity)
+            if sensitivities.count == 1 { first.fulfill() }
+            if sensitivities.count == 2 { second.fulfill() }
+        }
+        watcher.start()
+        defer { watcher.stop() }
+
+        Thread.sleep(forTimeInterval: 0.2)
+        var changed = KnockConfig.default
+        changed.sensitivity = 0.7
+        try ConfigStore.save(changed, to: url)
+        wait(for: [first], timeout: 2.0)
+
+        Thread.sleep(forTimeInterval: 0.2)
+        changed.sensitivity = 0.8
+        try ConfigStore.save(changed, to: url)
+        wait(for: [second], timeout: 2.0)
+
+        XCTAssertEqual(sensitivities.suffix(1), [0.8])
+    }
+
+    /// knockd runs under sudo, where HOME is /var/root. It must still
+    /// resolve the config path against the *invoking* user's home so it
+    /// reads the same file KnockAgent writes.
+    func testDefaultPathHonorsSudoUser() {
+        let plain = ConfigStore.defaultPath(environment: [:])
+        let sudo = ConfigStore.defaultPath(environment: ["SUDO_USER": NSUserName()])
+        XCTAssertEqual(sudo, plain)
+        XCTAssertTrue(plain.path.hasSuffix("/Library/Application Support/KnockDetector/config.json"))
+    }
+
+    func testDefaultPathFallsBackWhenSudoUserIsUnknown() {
+        let plain = ConfigStore.defaultPath(environment: [:])
+        let bogus = ConfigStore.defaultPath(environment: ["SUDO_USER": "no-such-user-\(UUID().uuidString)"])
+        XCTAssertEqual(bogus, plain)
+    }
 }

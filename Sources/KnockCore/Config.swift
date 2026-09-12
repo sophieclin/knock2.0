@@ -45,8 +45,20 @@ public enum ConfigStore {
     /// used by the commercial Knock app with an incompatible schema, and
     /// we must not overwrite it.
     public static var defaultPath: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return appSupport.appendingPathComponent("KnockDetector", isDirectory: true).appendingPathComponent("config.json")
+        defaultPath(environment: ProcessInfo.processInfo.environment)
+    }
+
+    /// knockd runs under `sudo`, where HOME is /var/root. Resolve against
+    /// the invoking user's home (via SUDO_USER) so both processes share the
+    /// one config file that KnockAgent writes.
+    static func defaultPath(environment: [String: String]) -> URL {
+        var home = FileManager.default.homeDirectoryForCurrentUser
+        if let sudoUser = environment["SUDO_USER"], let entry = getpwnam(sudoUser) {
+            home = URL(fileURLWithPath: String(cString: entry.pointee.pw_dir), isDirectory: true)
+        }
+        return home
+            .appendingPathComponent("Library/Application Support/KnockDetector", isDirectory: true)
+            .appendingPathComponent("config.json")
     }
 
     public static func load(from url: URL) throws -> KnockConfig {
@@ -87,7 +99,15 @@ public final class ConfigWatcher {
             queue: .main
         )
         source.setEventHandler { [weak self] in
-            guard let self, let config = try? ConfigStore.load(from: self.url) else { return }
+            guard let self, let event = self.source?.data else { return }
+            // ConfigStore.save is atomic (write temp + rename), which replaces
+            // the inode we're watching. Re-open the path so later saves are
+            // still seen; the new file is read below as part of this event.
+            if event.contains(.rename) || event.contains(.delete) {
+                self.stop()
+                self.start()
+            }
+            guard let config = try? ConfigStore.load(from: self.url) else { return }
             self.onChange(config)
         }
         source.setCancelHandler { [fileDescriptor] in

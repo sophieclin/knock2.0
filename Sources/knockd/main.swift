@@ -38,6 +38,17 @@ if simulate {
     let reader = AccelerometerReader()
     reader.delegate = delegate
     try reader.start()
+
+    // Pick up sensitivity/window changes made in KnockAgent's UI without a
+    // restart. Both the watcher and the HID callbacks run on the main run
+    // loop, so mutating the detector here is safe.
+    let watcher = ConfigWatcher(url: ConfigStore.defaultPath) { newConfig in
+        detector.sensitivity = newConfig.sensitivity
+        detector.windowSeconds = TimeInterval(newConfig.windowMs) / 1000.0
+        print("Config reloaded: sensitivity=\(newConfig.sensitivity) windowMs=\(newConfig.windowMs)")
+    }
+    watcher.start()
+
     print("Reading accelerometer (requires root). Tap the chassis to test.")
     RunLoop.current.run()
 }
