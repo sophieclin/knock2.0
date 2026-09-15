@@ -116,6 +116,16 @@ final class SystemActionExecutor: ActionExecuting {
         postMediaKey(NX_KEYTYPE_PLAY)
     }
 
+    /// `open -a` resolves the name through LaunchServices (any install
+    /// location) and brings the app to the front if it's already running.
+    /// No shell involved, so names with spaces need no quoting.
+    func openApp(named name: String) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", name]
+        try process.run()
+    }
+
     func runShellCommand(_ command: String) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")

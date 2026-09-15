@@ -72,6 +72,7 @@ struct SettingsView: View {
         case .previousApp: return "Previous app"
         case .shellCommand: return "Shell: \(action.command ?? "")"
         case .keystroke: return "Keys: \(action.keys ?? "")"
+        case .openApp: return "Open: \(action.app ?? "")"
         }
     }
 }
@@ -82,8 +83,22 @@ private struct AddMappingForm: View {
     @State private var actionType: ActionConfig.Kind = .mute
     @State private var command = ""
     @State private var keys = ""
+    @State private var app = ""
 
     private var keysAreValid: Bool { KeyCombo.parse(keys) != nil }
+    private var trimmedApp: String { app.trimmingCharacters(in: .whitespaces) }
+
+    /// Best-effort check of the usual install locations. `open -a` searches
+    /// more widely via LaunchServices, so a miss here is a warning, not a block.
+    private var appLooksInstalled: Bool {
+        let name = trimmedApp.hasSuffix(".app") ? trimmedApp : trimmedApp + ".app"
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return [
+            "/Applications", "/Applications/Utilities",
+            "/System/Applications", "/System/Applications/Utilities",
+            "\(home)/Applications",
+        ].contains { FileManager.default.fileExists(atPath: "\($0)/\(name)") }
+    }
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -96,6 +111,7 @@ private struct AddMappingForm: View {
                     Text("Shell command").tag(ActionConfig.Kind.shellCommand)
                     Text("Previous app").tag(ActionConfig.Kind.previousApp)
                     Text("Keystroke").tag(ActionConfig.Kind.keystroke)
+                    Text("Open app").tag(ActionConfig.Kind.openApp)
                 }
                 .frame(width: 140)
             }
@@ -108,16 +124,27 @@ private struct AddMappingForm: View {
                     Text("Unrecognized shortcut").font(.caption).foregroundStyle(.red)
                 }
             }
+            if actionType == .openApp {
+                TextField("App name, e.g. Claude or Safari", text: $app)
+                if !trimmedApp.isEmpty && !appLooksInstalled {
+                    Text("No app named \"\(trimmedApp)\" in the usual folders — check the spelling")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+            }
             Button("Add") {
                 var updated = model.config
                 updated.mappings[tapCount] = ActionConfig(
                     type: actionType,
                     command: actionType == .shellCommand ? command : nil,
-                    keys: actionType == .keystroke ? keys : nil
+                    keys: actionType == .keystroke ? keys : nil,
+                    app: actionType == .openApp ? trimmedApp : nil
                 )
                 model.save(updated)
             }
-            .disabled(actionType == .keystroke && !keysAreValid)
+            .disabled(
+                (actionType == .keystroke && !keysAreValid)
+                    || (actionType == .openApp && trimmedApp.isEmpty)
+            )
         }
     }
 }
