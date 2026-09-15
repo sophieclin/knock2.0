@@ -8,12 +8,28 @@ final class ActionRunnerTests: XCTestCase {
         var lastCommand: String?
         var previousAppCalled = false
         var lastKeyCombo: KeyCombo?
+        var lastOpenedApp: String?
 
         func mute() throws { muteCalled = true }
         func mediaPlayPause() throws { playPauseCalled = true }
         func runShellCommand(_ command: String) throws { lastCommand = command }
         func switchToPreviousApp() throws { previousAppCalled = true }
         func pressKeys(_ combo: KeyCombo) throws { lastKeyCombo = combo }
+        func openApp(named name: String) throws { lastOpenedApp = name }
+    }
+
+    func testDispatchesOpenAppWithItsName() throws {
+        let fake = FakeExecutor()
+        try ActionRunner(executor: fake).run(ActionConfig(type: .openApp, app: "Claude"))
+        XCTAssertEqual(fake.lastOpenedApp, "Claude")
+    }
+
+    func testOpenAppWithoutNameIsANoOp() throws {
+        let fake = FakeExecutor()
+        try ActionRunner(executor: fake).run(ActionConfig(type: .openApp, app: nil))
+        XCTAssertNil(fake.lastOpenedApp)
+        try ActionRunner(executor: fake).run(ActionConfig(type: .openApp, app: "  "))
+        XCTAssertNil(fake.lastOpenedApp)
     }
 
     func testDispatchesKeystrokeParsedFromKeys() throws {

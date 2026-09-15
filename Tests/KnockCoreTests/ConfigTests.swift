@@ -57,6 +57,15 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(loaded.mappings["2"], ActionConfig(type: .mute))
     }
 
+    func testOpenAppMappingRoundTrips() throws {
+        let url = tempURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        var config = KnockConfig.default
+        config.mappings["4"] = ActionConfig(type: .openApp, app: "Claude")
+        try ConfigStore.save(config, to: url)
+        XCTAssertEqual(try ConfigStore.load(from: url), config)
+    }
+
     func testEnabledDefaultsToTrueWhenMissingFromFile() throws {
         let url = tempURL()
         defer { try? FileManager.default.removeItem(at: url) }

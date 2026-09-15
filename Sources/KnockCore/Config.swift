@@ -10,6 +10,7 @@ public struct ActionConfig: Codable, Equatable {
         case shellCommand
         case previousApp
         case keystroke
+        case openApp
     }
 
     public let type: Kind
@@ -17,11 +18,14 @@ public struct ActionConfig: Codable, Equatable {
     public let command: String?
     /// Shortcut spec for `.keystroke`, e.g. "cmd+shift+4" (see KeyCombo.parse).
     public let keys: String?
+    /// Application name for `.openApp`, as shown in Finder, e.g. "Claude".
+    public let app: String?
 
-    public init(type: Kind, command: String? = nil, keys: String? = nil) {
+    public init(type: Kind, command: String? = nil, keys: String? = nil, app: String? = nil) {
         self.type = type
         self.command = command
         self.keys = keys
+        self.app = app
     }
 }
 

@@ -1,3 +1,5 @@
+import Foundation
+
 /// Performs the side-effecting half of an action. Implemented by
 /// SystemActionExecutor (KnockAgent target) for real use, and by a fake
 /// in tests, so ActionRunner's dispatch logic is testable without
@@ -8,6 +10,7 @@ public protocol ActionExecuting {
     func runShellCommand(_ command: String) throws
     func switchToPreviousApp() throws
     func pressKeys(_ combo: KeyCombo) throws
+    func openApp(named name: String) throws
 }
 
 public final class ActionRunner {
@@ -31,6 +34,9 @@ public final class ActionRunner {
         case .keystroke:
             guard let keys = action.keys, let combo = KeyCombo.parse(keys) else { return }
             try executor.pressKeys(combo)
+        case .openApp:
+            guard let name = action.app?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return }
+            try executor.openApp(named: name)
         }
     }
 }
