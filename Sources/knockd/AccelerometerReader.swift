@@ -23,7 +23,37 @@ public final class AccelerometerReader {
 
     public init() {}
 
+    /// The sensor streams nothing until its AppleSPUHIDDriver services are told
+    /// to report (their ReportInterval is 0 after boot). Setting these on the
+    /// IOHIDDevice instead is silently ignored on Apple Silicon, so they go on
+    /// the registry services. Previously knockd relied on some other process
+    /// having woken the drivers, which stopped happening after a reboot.
+    private func wakeSensorDrivers() {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleSPUHIDDriver"), &iterator) == KERN_SUCCESS else {
+            print("Warning: could not look up AppleSPUHIDDriver services; sensor may not report")
+            return
+        }
+        defer { IOObjectRelease(iterator) }
+
+        let properties: [(String, Int32)] = [
+            ("SensorPropertyReportingState", 1),
+            ("SensorPropertyPowerState", 1),
+            ("ReportInterval", 1000), // microseconds; hardware clamps to its max rate
+        ]
+        while case let service = IOIteratorNext(iterator), service != 0 {
+            for (key, value) in properties {
+                let result = IORegistryEntrySetCFProperty(service, key as CFString, NSNumber(value: value))
+                if result != KERN_SUCCESS {
+                    print("Warning: setting \(key) on AppleSPUHIDDriver failed (0x\(String(UInt32(bitPattern: result), radix: 16)))")
+                }
+            }
+            IOObjectRelease(service)
+        }
+    }
+
     public func start() throws {
+        wakeSensorDrivers()
         let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
 
         let matching: [String: Any] = [
