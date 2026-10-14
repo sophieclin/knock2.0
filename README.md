@@ -1,6 +1,6 @@
-# Knock 2.0
+# Knockd 
 
-A free, personal alternative to the Knock app: detect tap patterns on
+Detects tap patterns on
 the MacBook chassis via the internal accelerometer and trigger mute,
 media play/pause, or a shell command.
 
